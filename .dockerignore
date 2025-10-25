@@ -1,0 +1,26 @@
+# Don't copy these to Docker image
+.git
+.gitignore
+*.md
+README.md
+.DS_Store
+Thumbs.db
+
+# Don't copy config with credentials
+config/server.properties
+
+# Don't copy local data
+data/
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+*.class
+target/
+out/
+
+# Docker files themselves
+Dockerfile
+.dockerignore
+docker-compose.yml
