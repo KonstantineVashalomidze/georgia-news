@@ -375,7 +375,7 @@ interface HTMLSanitizer {
  * Security Note:
  * - HTTPS recommended for production
  * - Change default credentials immediately
- * - Password hashing should be added for production use
+ * - პაროლი hashing should be added for production use
  *
  * Session Management:
  * - Session token stored in cookie
@@ -393,8 +393,8 @@ interface HTMLSanitizer {
 interface CMSAuthenticator {
     /**
      * Authenticates user credentials.
-     * @param username Username to check
-     * @param password Password to check
+     * @param username მომხმარებლის სახელი to check
+     * @param password პაროლი to check
      * @return true if credentials valid, false otherwise
      */
     boolean authenticate(String username, String password);
@@ -950,7 +950,7 @@ class SimpleHTMLSanitizer implements HTMLSanitizer {
 class SimpleArticleValidator implements ArticleValidator {
     private final List<String> errors = new ArrayList<>();
     private static final Pattern SLUG_PATTERN = Pattern.compile("^[a-z0-9-]+$");
-    private static final Pattern TAG_PATTERN = Pattern.compile("^[a-z0-9-]+$");
+    private static final Pattern TAG_PATTERN = Pattern.compile("^[a-z0-9-\\u10D0-\\u10F0\\u10F1-\\u10F6]+$");
     private static final Logger logger = Logger.getLogger(SimpleArticleValidator.class.getName());
 
     @Override
@@ -1082,7 +1082,7 @@ class SimpleArticleRenderer implements ArticleRenderer {
                 "<div class=\"content\">\n" + article.getContent() + "\n</div>\n" +
                 "</article>\n" +
                 "</main>\n" +
-                "<footer><p>© 2025 Article Platform</p></footer>\n" +
+                "<footer><p>© 2025 ქართული ახალი ამბები</p></footer>\n" +
                 "</body>\n</html>";
     }
 
@@ -1094,14 +1094,14 @@ class SimpleArticleRenderer implements ArticleRenderer {
         html.append("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n")
                 .append("<meta charset=\"UTF-8\">\n")
                 .append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n")
-                .append("<title>Article Platform</title>\n")
+                .append("<title>ქართული ახალი ამბები</title>\n")
                 .append("<style>").append(getCSS()).append("</style>\n")
                 .append("</head>\n<body>\n")
-                .append("<header><h1>Article Platform</h1></header>\n")
+                .append("<header><h1>ქართული ახალი ამბები</h1></header>\n")
                 .append("<main>\n");
 
         if (articles.isEmpty()) {
-            html.append("<p>No articles yet.</p>\n");
+            html.append("<p>ახალი ამბები არ მოიძებნა.</p>\n");
             logger.log(Level.INFO, "Rendered homepage with no articles");
         } else {
             for (Article article : articles) {
@@ -1125,7 +1125,7 @@ class SimpleArticleRenderer implements ArticleRenderer {
         }
 
         html.append("</main>\n")
-                .append("<footer><p>© 2025 Article Platform | <a href=\"/cms\">CMS Login</a></p></footer>\n")
+                .append("<footer><p>© 2025 ქართული ახალი ამბები | <a href=\"/cms\">CMS-ში შესვლა</a></p></footer>\n")
                 .append("</body>\n</html>");
 
         return html.toString();
@@ -1145,7 +1145,7 @@ class SimpleArticleRenderer implements ArticleRenderer {
                 "<h1>404 - Page Not Found</h1>\n" +
                 "<p>The article you're looking for doesn't exist.</p>\n" +
                 "</main>\n" +
-                "<footer><p>© 2025 Article Platform</p></footer>\n" +
+                "<footer><p>© 2025 ქართული ახალი ამბები</p></footer>\n" +
                 "</body>\n</html>";
     }
 
@@ -1163,7 +1163,7 @@ class SimpleArticleRenderer implements ArticleRenderer {
                 "<h1>Error</h1>\n" +
                 "<p>" + sanitizer.escapeHTML(message) + "</p>\n" +
                 "</main>\n" +
-                "<footer><p>© 2025 Article Platform</p></footer>\n" +
+                "<footer><p>© 2025 ქართული ახალი ამბები</p></footer>\n" +
                 "</body>\n</html>";
     }
 
@@ -1214,7 +1214,7 @@ class SimpleCMSRenderer implements CMSRenderer {
                 .append("</header>\n<main>\n");
 
         if (articles.isEmpty()) {
-            html.append("<p>No articles yet. <a href=\"/cms/new\">Create one</a>.</p>\n");
+            html.append("<p>ახალი ამბები არ მოიძებნა. <a href=\"/cms/new\">Create one</a>.</p>\n");
         } else {
             html.append("<table>\n<thead><tr><th>Title</th><th>Status</th><th>Date</th><th>Actions</th></tr></thead>\n<tbody>\n");
             DateTimeFormatter fmt = DateTimeFormatter.ofPattern("MMM d, yyyy");
@@ -1322,25 +1322,25 @@ class SimpleCMSRenderer implements CMSRenderer {
         return "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n" +
                 "<meta charset=\"UTF-8\">\n" +
                 "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n" +
-                "<title>CMS Login</title>\n" +
+                "<title>CMS-ში შესვლა</title>\n" +
                 "<style>" + getCMSCSS() + "</style>\n" +
                 "</head>\n<body>\n" +
-                "<header><h1>CMS Login</h1></header>\n" +
+                "<header><h1>CMS-ში შესვლა</h1></header>\n" +
                 "<main>\n" +
                 "<form method=\"POST\" action=\"/cms/login\" class=\"login-form\">\n" +
                 "<div class=\"form-group\">" +
-                "<label for=\"username\">Username</label>" +
+                "<label for=\"username\">მომხმარებლის სახელი</label>" +
                 "<input type=\"text\" id=\"username\" name=\"username\" required autofocus>" +
                 "</div>\n" +
                 "<div class=\"form-group\">" +
-                "<label for=\"password\">Password</label>" +
+                "<label for=\"password\">პაროლი</label>" +
                 "<input type=\"password\" id=\"password\" name=\"password\" required>" +
                 "</div>\n" +
                 "<div class=\"form-actions\">" +
                 "<button type=\"submit\">Login</button>" +
                 "</div>\n" +
                 "</form>\n" +
-                "<p style=\"text-align:center;margin-top:30px;\"><a href=\"/\">← Back to Site</a></p>\n" +
+                "<p style=\"text-align:center;margin-top:30px;\"><a href=\"/\">← საიტზე დაბრუნება</a></p>\n" +
                 "</main>\n" +
                 "</body>\n</html>";
     }
@@ -2003,10 +2003,10 @@ class SimpleArticleServer implements ArticleServer {
         server.start();
         running = true;
 
-        logger.log(Level.INFO, "Article Platform started successfully!");
+        logger.log(Level.INFO, "ქართული ახალი ამბები started successfully!");
         logger.log(Level.INFO, "URL: http://localhost:{0}", config.getPort());
         logger.log(Level.INFO, "CMS: http://localhost:{0}/cms", config.getPort());
-        logger.log(Level.INFO, "Username: {0}", config.getCmsUsername());
+        logger.log(Level.INFO, "მომხმარებლის სახელი: {0}", config.getCmsUsername());
         logger.log(Level.WARNING, "Using default password - change immediately in config file!");
         logger.log(Level.INFO, "Press Ctrl+C to stop the server.");
     }
@@ -2035,7 +2035,7 @@ public class Main {
 
     public static void main(String[] args) {
         try {
-            logger.info("Starting Article Platform...");
+            logger.info("Starting ქართული ახალი ამბები...");
 
             ServerConfig config = new SimpleServerConfig();
             SimpleArticleServer server = new SimpleArticleServer(config);
