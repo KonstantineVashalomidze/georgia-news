@@ -17,7 +17,6 @@ data/
 *.iml
 .vscode/
 *.class
-target/
 out/
 
 # Docker files themselves
