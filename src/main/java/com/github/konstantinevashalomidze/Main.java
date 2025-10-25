@@ -10,6 +10,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.*;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -558,10 +559,6 @@ interface CSRFTokenManager {
     boolean validateAndConsume(String sessionToken, String csrfToken);
 }
 
-
-
-
-
 // ============================================================================
 // DOMAIN MODEL IMPLEMENTATION
 // ============================================================================
@@ -614,6 +611,7 @@ class FileArticleRepository implements ArticleRepository {
     private final Path archivePath;
     private final Path indexPath;
     private final Object lock = new Object();
+    private static final Logger logger = Logger.getLogger(FileArticleRepository.class.getName());
 
     public FileArticleRepository(String storageDir) throws IOException {
         this.storagePath = Paths.get(storageDir);
@@ -625,7 +623,10 @@ class FileArticleRepository implements ArticleRepository {
 
         if (!Files.exists(indexPath)) {
             Files.writeString(indexPath, "[]", StandardCharsets.UTF_8);
+            logger.log(Level.INFO, "Created new index file at: {0}", indexPath);
         }
+
+        logger.log(Level.INFO, "Initialized FileArticleRepository with storage path: {0}", storagePath);
     }
 
     @Override
@@ -635,6 +636,7 @@ class FileArticleRepository implements ArticleRepository {
             String json = articleToJson(article);
             Files.writeString(articleFile, json, StandardCharsets.UTF_8);
             updateIndex();
+            logger.log(Level.INFO, "Saved article: {0} ({1})", new Object[]{article.getSlug(), article.getTitle()});
         }
     }
 
@@ -642,18 +644,23 @@ class FileArticleRepository implements ArticleRepository {
     public Optional<Article> findBySlug(String slug) throws IOException {
         Path articleFile = storagePath.resolve(slug + ".json");
         if (!Files.exists(articleFile)) {
+            logger.log(Level.FINE, "Article not found by slug: {0}", slug);
             return Optional.empty();
         }
         String json = Files.readString(articleFile, StandardCharsets.UTF_8);
-        return Optional.of(jsonToArticle(json));
+        Article article = jsonToArticle(json);
+        logger.log(Level.FINE, "Found article by slug: {0}", slug);
+        return Optional.of(article);
     }
 
     @Override
     public List<Article> findAllPublished() throws IOException {
-        return findAll().stream()
+        List<Article> articles = findAll().stream()
                 .filter(Article::isPublished)
                 .sorted((a, b) -> b.getPublishedAt().compareTo(a.getPublishedAt()))
                 .collect(Collectors.toList());
+        logger.log(Level.FINE, "Found {0} published articles", articles.size());
+        return articles;
     }
 
     @Override
@@ -671,6 +678,7 @@ class FileArticleRepository implements ArticleRepository {
             LocalDateTime bTime = b.getUpdatedAt() != null ? b.getUpdatedAt() : b.getPublishedAt();
             return bTime.compareTo(aTime);
         });
+        logger.log(Level.FINE, "Found {0} total articles", articles.size());
         return articles;
     }
 
@@ -679,11 +687,13 @@ class FileArticleRepository implements ArticleRepository {
         synchronized (lock) {
             Path articleFile = storagePath.resolve(slug + ".json");
             if (!Files.exists(articleFile)) {
+                logger.log(Level.WARNING, "Attempted to delete non-existent article: {0}", slug);
                 return false;
             }
             Path archiveFile = archivePath.resolve(slug + ".json");
             Files.move(articleFile, archiveFile, StandardCopyOption.REPLACE_EXISTING);
             updateIndex();
+            logger.log(Level.INFO, "Deleted article (moved to archive): {0}", slug);
             return true;
         }
     }
@@ -701,6 +711,7 @@ class FileArticleRepository implements ArticleRepository {
         }
         json.append("]");
         Files.writeString(indexPath, json.toString(), StandardCharsets.UTF_8);
+        logger.log(Level.FINEST, "Updated article index with {0} articles", articles.size());
     }
 
     private String articleToJson(Article a) {
@@ -876,13 +887,18 @@ class SimpleHTMLSanitizer implements HTMLSanitizer {
             "p", "br", "strong", "em", "b", "i", "a", "ul", "ol", "li",
             "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "code", "pre"
     ));
+    private static final Logger logger = Logger.getLogger(SimpleHTMLSanitizer.class.getName());
 
     @Override
     public String sanitizeHTML(String html) {
         if (html == null) return "";
 
         // Remove script tags and content
+        String original = html;
         html = html.replaceAll("(?i)<script[^>]*>.*?</script>", "");
+        if (!original.equals(html)) {
+            logger.log(Level.WARNING, "Removed script tags from HTML content");
+        }
 
         // Remove event handlers
         html = html.replaceAll("(?i)\\s*on\\w+\\s*=\\s*[\"'][^\"']*[\"']", "");
@@ -903,6 +919,8 @@ class SimpleHTMLSanitizer implements HTMLSanitizer {
 
                 if (ALLOWED_TAGS.contains(tagName) || tag.startsWith("/")) {
                     result.append(html, i, end + 1);
+                } else {
+                    logger.log(Level.FINE, "Removed disallowed HTML tag: {0}", tagName);
                 }
                 i = end + 1;
             } else {
@@ -933,6 +951,7 @@ class SimpleArticleValidator implements ArticleValidator {
     private final List<String> errors = new ArrayList<>();
     private static final Pattern SLUG_PATTERN = Pattern.compile("^[a-z0-9-]+$");
     private static final Pattern TAG_PATTERN = Pattern.compile("^[a-z0-9-]+$");
+    private static final Logger logger = Logger.getLogger(SimpleArticleValidator.class.getName());
 
     @Override
     public boolean validate(Article article) {
@@ -940,6 +959,7 @@ class SimpleArticleValidator implements ArticleValidator {
 
         if (article == null) {
             errors.add("Article cannot be null");
+            logger.log(Level.WARNING, "Validation failed: article is null");
             return false;
         }
 
@@ -1000,7 +1020,15 @@ class SimpleArticleValidator implements ArticleValidator {
             errors.add("Published date cannot be in the future");
         }
 
-        return errors.isEmpty();
+        boolean isValid = errors.isEmpty();
+        if (!isValid) {
+            logger.log(Level.WARNING, "Article validation failed with {0} errors: {1}",
+                    new Object[]{errors.size(), String.join(", ", errors)});
+        } else {
+            logger.log(Level.FINE, "Article validation passed for: {0}", article.getTitle());
+        }
+
+        return isValid;
     }
 
     @Override
@@ -1015,6 +1043,7 @@ class SimpleArticleValidator implements ArticleValidator {
 
 class SimpleArticleRenderer implements ArticleRenderer {
     private final HTMLSanitizer sanitizer;
+    private static final Logger logger = Logger.getLogger(SimpleArticleRenderer.class.getName());
 
     public SimpleArticleRenderer(HTMLSanitizer sanitizer) {
         this.sanitizer = sanitizer;
@@ -1022,9 +1051,19 @@ class SimpleArticleRenderer implements ArticleRenderer {
 
     @Override
     public String renderArticlePage(Article article) {
+        if (article == null) {
+            logger.log(Level.WARNING, "Attempted to render null article");
+            throw new IllegalArgumentException("Article cannot be null");
+        }
+        if (!article.isPublished()) {
+            logger.log(Level.WARNING, "Attempted to render unpublished article: {0}", article.getSlug());
+            throw new IllegalArgumentException("Article must be published");
+        }
+
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("MMMM d, yyyy");
         String date = article.getPublishedAt().format(fmt);
 
+        logger.log(Level.FINE, "Rendering article page: {0}", article.getSlug());
         return "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n" +
                 "<meta charset=\"UTF-8\">\n" +
                 "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n" +
@@ -1049,6 +1088,8 @@ class SimpleArticleRenderer implements ArticleRenderer {
 
     @Override
     public String renderHomePage(List<Article> articles) {
+        logger.log(Level.FINE, "Rendering homepage with {0} articles", articles.size());
+
         StringBuilder html = new StringBuilder();
         html.append("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n")
                 .append("<meta charset=\"UTF-8\">\n")
@@ -1061,6 +1102,7 @@ class SimpleArticleRenderer implements ArticleRenderer {
 
         if (articles.isEmpty()) {
             html.append("<p>No articles yet.</p>\n");
+            logger.log(Level.INFO, "Rendered homepage with no articles");
         } else {
             for (Article article : articles) {
                 DateTimeFormatter fmt = DateTimeFormatter.ofPattern("MMMM d, yyyy");
@@ -1079,6 +1121,7 @@ class SimpleArticleRenderer implements ArticleRenderer {
                 html.append("<p><a href=\"/article/").append(article.getSlug()).append("\">Read more →</a></p>\n")
                         .append("</article>\n");
             }
+            logger.log(Level.FINE, "Rendered homepage with {0} articles", articles.size());
         }
 
         html.append("</main>\n")
@@ -1090,6 +1133,7 @@ class SimpleArticleRenderer implements ArticleRenderer {
 
     @Override
     public String render404Page() {
+        logger.log(Level.FINE, "Rendering 404 page");
         return "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n" +
                 "<meta charset=\"UTF-8\">\n" +
                 "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n" +
@@ -1107,6 +1151,7 @@ class SimpleArticleRenderer implements ArticleRenderer {
 
     @Override
     public String renderErrorPage(String message) {
+        logger.log(Level.WARNING, "Rendering error page with message: {0}", message);
         return "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n" +
                 "<meta charset=\"UTF-8\">\n" +
                 "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n" +
@@ -1147,6 +1192,7 @@ class SimpleArticleRenderer implements ArticleRenderer {
 
 class SimpleCMSRenderer implements CMSRenderer {
     private final HTMLSanitizer sanitizer;
+    private static final Logger logger = Logger.getLogger(SimpleCMSRenderer.class.getName());
 
     public SimpleCMSRenderer(HTMLSanitizer sanitizer) {
         this.sanitizer = sanitizer;
@@ -1154,6 +1200,8 @@ class SimpleCMSRenderer implements CMSRenderer {
 
     @Override
     public String renderArticleList(List<Article> articles) {
+        logger.log(Level.FINE, "Rendering CMS article list with {0} articles", articles.size());
+
         StringBuilder html = new StringBuilder();
         html.append("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n")
                 .append("<meta charset=\"UTF-8\">\n")
@@ -1206,6 +1254,8 @@ class SimpleCMSRenderer implements CMSRenderer {
         String author = isNew ? "" : sanitizer.escapeHTML(article.getAuthor());
         String tags = isNew ? "" : String.join(", ", article.getTags());
         boolean published = !isNew && article.isPublished();
+
+        logger.log(Level.FINE, "Rendering CMS editor for article: {0}", isNew ? "new" : article.getSlug());
 
         return "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n" +
                 "<meta charset=\"UTF-8\">\n" +
@@ -1268,6 +1318,7 @@ class SimpleCMSRenderer implements CMSRenderer {
 
     @Override
     public String renderLoginPage() {
+        logger.log(Level.FINE, "Rendering CMS login page");
         return "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n" +
                 "<meta charset=\"UTF-8\">\n" +
                 "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n" +
@@ -1297,8 +1348,11 @@ class SimpleCMSRenderer implements CMSRenderer {
     @Override
     public String renderPreview(Article article) {
         if (article == null) {
+            logger.log(Level.FINE, "Rendering empty preview");
             return "<div class=\"preview-empty\"><p>No content to preview</p></div>";
         }
+
+        logger.log(Level.FINE, "Rendering preview for article: {0}", article.getSlug());
 
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("MMMM d, yyyy");
         String date = article.getPublishedAt().format(fmt);
@@ -1383,6 +1437,7 @@ class SimpleCMSRenderer implements CMSRenderer {
 
 class SimpleServerConfig implements ServerConfig {
     private final Properties props;
+    private static final Logger logger = Logger.getLogger(SimpleServerConfig.class.getName());
 
     public SimpleServerConfig(String configPath) throws IOException {
         props = new Properties();
@@ -1391,6 +1446,7 @@ class SimpleServerConfig implements ServerConfig {
         if (Files.exists(path)) {
             try (var in = Files.newInputStream(path)) {
                 props.load(in);
+                logger.log(Level.INFO, "Loaded configuration from: {0}", configPath);
             }
         } else {
             // Create default config
@@ -1404,8 +1460,8 @@ class SimpleServerConfig implements ServerConfig {
             try (var out = Files.newOutputStream(path)) {
                 props.store(out, "Article Platform Configuration");
             }
-            System.out.println("Created default config at: " + configPath);
-            System.out.println("WARNING: Change default CMS password immediately!");
+            logger.log(Level.INFO, "Created default config at: {0}", configPath);
+            logger.log(Level.WARNING, "Using default CMS credentials - change password immediately in config file!");
         }
     }
 
@@ -1442,31 +1498,52 @@ class SimpleServerConfig implements ServerConfig {
 class SimpleCSRFTokenManager implements CSRFTokenManager {
     private final Map<String, Map<String, Long>> sessionTokens = new ConcurrentHashMap<>();
     private static final long TOKEN_EXPIRY = 3600000; // 1 hour in milliseconds
+    private static final Logger logger = Logger.getLogger(SimpleCSRFTokenManager.class.getName());
 
     @Override
     public String generateToken(String sessionToken) {
         String csrfToken = UUID.randomUUID().toString();
         sessionTokens.computeIfAbsent(sessionToken, k -> new ConcurrentHashMap<>())
                 .put(csrfToken, System.currentTimeMillis());
+        logger.log(Level.FINE, "Generated CSRF token for session: {0}", sessionToken);
         return csrfToken;
     }
 
     @Override
     public boolean validateAndConsume(String sessionToken, String csrfToken) {
         Map<String, Long> tokens = sessionTokens.get(sessionToken);
-        if (tokens == null) return false;
+        if (tokens == null) {
+            logger.log(Level.WARNING, "CSRF validation failed: no tokens for session");
+            return false;
+        }
 
         Long timestamp = tokens.remove(csrfToken);
-        if (timestamp == null) return false;
+        if (timestamp == null) {
+            logger.log(Level.WARNING, "CSRF validation failed: token not found");
+            return false;
+        }
 
-        return (System.currentTimeMillis() - timestamp) < TOKEN_EXPIRY;
+        boolean isValid = (System.currentTimeMillis() - timestamp) < TOKEN_EXPIRY;
+        if (!isValid) {
+            logger.log(Level.WARNING, "CSRF validation failed: token expired");
+        } else {
+            logger.log(Level.FINE, "CSRF token validated successfully");
+        }
+
+        return isValid;
     }
 
     public void cleanExpiredTokens() {
         long now = System.currentTimeMillis();
+        int before = sessionTokens.values().stream().mapToInt(Map::size).sum();
         sessionTokens.values().forEach(tokens ->
                 tokens.entrySet().removeIf(e -> (now - e.getValue()) > TOKEN_EXPIRY)
         );
+        int after = sessionTokens.values().stream().mapToInt(Map::size).sum();
+
+        if (before > after) {
+            logger.log(Level.FINE, "Cleaned {0} expired CSRF tokens", before - after);
+        }
     }
 }
 
@@ -1479,29 +1556,42 @@ class SimpleCMSAuthenticator implements CMSAuthenticator {
     private final String validPassword;
     private final Map<String, Long> sessions = new ConcurrentHashMap<>();
     private static final long SESSION_EXPIRY = 86400000; // 24 hours
+    private static final Logger logger = Logger.getLogger(SimpleCMSAuthenticator.class.getName());
 
     public SimpleCMSAuthenticator(String username, String password) {
         this.validUsername = username;
         this.validPassword = password;
+        logger.log(Level.INFO, "Initialized CMS authenticator for user: {0}", username);
     }
 
     @Override
     public boolean authenticate(String username, String password) {
-        return validUsername.equals(username) && validPassword.equals(password);
+        boolean isValid = validUsername.equals(username) && validPassword.equals(password);
+        if (isValid) {
+            logger.log(Level.INFO, "Successful authentication for user: {0}", username);
+        } else {
+            logger.log(Level.WARNING, "Failed authentication attempt for user: {0}", username);
+        }
+        return isValid;
     }
 
     @Override
     public boolean validateSession(String sessionToken) {
         Long timestamp = sessions.get(sessionToken);
-        if (timestamp == null) return false;
+        if (timestamp == null) {
+            logger.log(Level.FINE, "Session validation failed: token not found");
+            return false;
+        }
 
         if (System.currentTimeMillis() - timestamp > SESSION_EXPIRY) {
             sessions.remove(sessionToken);
+            logger.log(Level.FINE, "Session validation failed: token expired");
             return false;
         }
 
         // Refresh session
         sessions.put(sessionToken, System.currentTimeMillis());
+        logger.log(Level.FINE, "Session validated successfully");
         return true;
     }
 
@@ -1509,12 +1599,14 @@ class SimpleCMSAuthenticator implements CMSAuthenticator {
     public String createSession() {
         String token = UUID.randomUUID().toString();
         sessions.put(token, System.currentTimeMillis());
+        logger.log(Level.INFO, "Created new session token");
         return token;
     }
 
     @Override
     public void invalidateSession(String sessionToken) {
         sessions.remove(sessionToken);
+        logger.log(Level.INFO, "Invalidated session token");
     }
 }
 
@@ -1525,6 +1617,7 @@ class SimpleCMSAuthenticator implements CMSAuthenticator {
 class SimpleArticleHandler implements ArticleHandler {
     private final ArticleRepository repository;
     private final ArticleRenderer renderer;
+    private static final Logger logger = Logger.getLogger(SimpleArticleHandler.class.getName());
 
     public SimpleArticleHandler(ArticleRepository repository, ArticleRenderer renderer) {
         this.repository = repository;
@@ -1535,8 +1628,12 @@ class SimpleArticleHandler implements ArticleHandler {
     public void handle(HttpExchange exchange) throws IOException {
         String method = exchange.getRequestMethod();
         String path = exchange.getRequestURI().getPath();
+        String clientIP = getClientIP(exchange);
+
+        logger.log(Level.INFO, "Request: {0} {1} from {2}", new Object[]{method, path, clientIP});
 
         if (!method.equals("GET")) {
+            logger.log(Level.WARNING, "Method not allowed: {0} for path {1}", new Object[]{method, path});
             sendResponse(exchange, 405, "Method Not Allowed");
             return;
         }
@@ -1547,30 +1644,44 @@ class SimpleArticleHandler implements ArticleHandler {
             } else if (path.startsWith("/article/")) {
                 handleArticlePage(exchange, path.substring(9));
             } else {
+                logger.log(Level.FINE, "404 Not Found: {0}", path);
                 sendHtmlResponse(exchange, 404, renderer.render404Page());
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.log(Level.SEVERE, "Error handling request: " + path, e);
             sendHtmlResponse(exchange, 500, renderer.renderErrorPage("Internal server error"));
         }
     }
 
     private void handleHomePage(HttpExchange exchange) throws IOException {
+        logger.log(Level.FINE, "Handling homepage request");
         List<Article> articles = repository.findAllPublished();
         String html = renderer.renderHomePage(articles);
         sendHtmlResponse(exchange, 200, html);
+        logger.log(Level.FINE, "Homepage rendered with {0} articles", articles.size());
     }
 
     private void handleArticlePage(HttpExchange exchange, String slug) throws IOException {
+        logger.log(Level.FINE, "Handling article page request for slug: {0}", slug);
         Optional<Article> article = repository.findBySlug(slug);
 
         if (article.isEmpty() || !article.get().isPublished()) {
+            logger.log(Level.FINE, "Article not found or not published: {0}", slug);
             sendHtmlResponse(exchange, 404, renderer.render404Page());
             return;
         }
 
         String html = renderer.renderArticlePage(article.get());
         sendHtmlResponse(exchange, 200, html);
+        logger.log(Level.FINE, "Article page rendered successfully: {0}", slug);
+    }
+
+    private String getClientIP(HttpExchange exchange) {
+        String xForwardedFor = exchange.getRequestHeaders().getFirst("X-Forwarded-For");
+        if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
+            return xForwardedFor.split(",")[0].trim();
+        }
+        return exchange.getRemoteAddress().getAddress().getHostAddress();
     }
 
     private void sendHtmlResponse(HttpExchange exchange, int statusCode, String html) throws IOException {
@@ -1581,6 +1692,7 @@ class SimpleArticleHandler implements ArticleHandler {
         exchange.sendResponseHeaders(statusCode, response.length);
         exchange.getResponseBody().write(response);
         exchange.getResponseBody().close();
+        logger.log(Level.FINE, "Sent HTML response with status: {0}", statusCode);
     }
 
     private void sendResponse(HttpExchange exchange, int statusCode, String message) throws IOException {
@@ -1588,6 +1700,7 @@ class SimpleArticleHandler implements ArticleHandler {
         exchange.sendResponseHeaders(statusCode, response.length);
         exchange.getResponseBody().write(response);
         exchange.getResponseBody().close();
+        logger.log(Level.FINE, "Sent response with status: {0}", statusCode);
     }
 }
 
@@ -1602,6 +1715,7 @@ class SimpleCMSHandler implements CMSHandler {
     private final CSRFTokenManager csrfManager;
     private final ArticleValidator validator;
     private final HTMLSanitizer sanitizer;
+    private static final Logger logger = Logger.getLogger(SimpleCMSHandler.class.getName());
 
     public SimpleCMSHandler(ArticleRepository repository, CMSRenderer renderer,
                             CMSAuthenticator authenticator, CSRFTokenManager csrfManager,
@@ -1618,9 +1732,13 @@ class SimpleCMSHandler implements CMSHandler {
     public void handle(HttpExchange exchange) throws IOException {
         String path = exchange.getRequestURI().getPath();
         String method = exchange.getRequestMethod();
+        String clientIP = getClientIP(exchange);
+
+        logger.log(Level.INFO, "CMS Request: {0} {1} from {2}", new Object[]{method, path, clientIP});
 
         // Login page doesn't require auth
         if (path.equals("/cms/login") && method.equals("GET")) {
+            logger.log(Level.FINE, "Serving login page");
             sendHtmlResponse(exchange, 200, renderer.renderLoginPage());
             return;
         }
@@ -1633,6 +1751,7 @@ class SimpleCMSHandler implements CMSHandler {
         // Check authentication for all other CMS routes
         String sessionToken = getSessionToken(exchange);
         if (sessionToken == null || !authenticator.validateSession(sessionToken)) {
+            logger.log(Level.WARNING, "Unauthorized access attempt to CMS: {0}", path);
             redirect(exchange, "/cms/login");
             return;
         }
@@ -1651,10 +1770,11 @@ class SimpleCMSHandler implements CMSHandler {
             } else if (path.equals("/cms/logout")) {
                 handleLogout(exchange, sessionToken);
             } else {
+                logger.log(Level.WARNING, "CMS route not found: {0}", path);
                 sendResponse(exchange, 404, "Not Found");
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.log(Level.SEVERE, "Error handling CMS request: " + path, e);
             sendResponse(exchange, 500, "Internal Server Error: " + e.getMessage());
         }
     }
@@ -1664,13 +1784,17 @@ class SimpleCMSHandler implements CMSHandler {
         String username = params.get("username");
         String password = params.get("password");
 
+        logger.log(Level.INFO, "Login attempt for user: {0}", username);
+
         if (authenticator.authenticate(username, password)) {
             String sessionToken = authenticator.createSession();
             exchange.getResponseHeaders().add("Set-Cookie",
                     "session=" + sessionToken + "; Path=/; HttpOnly; Max-Age=86400");
             redirect(exchange, "/cms");
+            logger.log(Level.INFO, "Successful login for user: {0}", username);
         } else {
             sendHtmlResponse(exchange, 401, renderer.renderLoginPage());
+            logger.log(Level.WARNING, "Failed login attempt for user: {0}", username);
         }
     }
 
@@ -1679,23 +1803,28 @@ class SimpleCMSHandler implements CMSHandler {
         exchange.getResponseHeaders().add("Set-Cookie",
                 "session=; Path=/; HttpOnly; Max-Age=0");
         redirect(exchange, "/");
+        logger.log(Level.INFO, "User logged out");
     }
 
     private void handleArticleList(HttpExchange exchange) throws IOException {
+        logger.log(Level.FINE, "Handling CMS article list request");
         List<Article> articles = repository.findAll();
         String html = renderer.renderArticleList(articles);
         sendHtmlResponse(exchange, 200, html);
     }
 
     private void handleNewArticle(HttpExchange exchange, String sessionToken) throws IOException {
+        logger.log(Level.FINE, "Handling new article form request");
         String csrfToken = csrfManager.generateToken(sessionToken);
         String html = renderer.renderEditor(null, csrfToken);
         sendHtmlResponse(exchange, 200, html);
     }
 
     private void handleEditArticle(HttpExchange exchange, String slug, String sessionToken) throws IOException {
+        logger.log(Level.FINE, "Handling edit article request for: {0}", slug);
         Optional<Article> article = repository.findBySlug(slug);
         if (article.isEmpty()) {
+            logger.log(Level.WARNING, "Article not found for editing: {0}", slug);
             sendResponse(exchange, 404, "Article not found");
             return;
         }
@@ -1710,6 +1839,7 @@ class SimpleCMSHandler implements CMSHandler {
 
         // Validate CSRF
         if (!csrfManager.validateAndConsume(sessionToken, params.get("csrf"))) {
+            logger.log(Level.WARNING, "CSRF validation failed for article save");
             sendResponse(exchange, 403, "Invalid CSRF token");
             return;
         }
@@ -1735,20 +1865,39 @@ class SimpleCMSHandler implements CMSHandler {
                 tags
         );
 
+        logger.log(Level.INFO, "Saving article: {0} (published: {1})",
+                new Object[]{article.getSlug(), article.isPublished()});
+
         // Validate
         if (!validator.validate(article)) {
-            sendResponse(exchange, 400, "Validation failed: " +
-                    String.join(", ", validator.getValidationErrors()));
+            String errorMsg = "Validation failed: " + String.join(", ", validator.getValidationErrors());
+            logger.log(Level.WARNING, "Article validation failed: {0}", errorMsg);
+            sendResponse(exchange, 400, errorMsg);
             return;
         }
 
         repository.save(article);
         redirect(exchange, "/cms");
+        logger.log(Level.INFO, "Article saved successfully: {0}", article.getSlug());
     }
 
     private void handleDeleteArticle(HttpExchange exchange, String slug) throws IOException {
-        repository.delete(slug);
+        logger.log(Level.INFO, "Deleting article: {0}", slug);
+        boolean deleted = repository.delete(slug);
+        if (deleted) {
+            logger.log(Level.INFO, "Article deleted: {0}", slug);
+        } else {
+            logger.log(Level.WARNING, "Article not found for deletion: {0}", slug);
+        }
         redirect(exchange, "/cms");
+    }
+
+    private String getClientIP(HttpExchange exchange) {
+        String xForwardedFor = exchange.getRequestHeaders().getFirst("X-Forwarded-For");
+        if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
+            return xForwardedFor.split(",")[0].trim();
+        }
+        return exchange.getRemoteAddress().getAddress().getHostAddress();
     }
 
     private String getSessionToken(HttpExchange exchange) {
@@ -1784,6 +1933,7 @@ class SimpleCMSHandler implements CMSHandler {
         exchange.getResponseHeaders().set("Location", location);
         exchange.sendResponseHeaders(302, -1);
         exchange.getResponseBody().close();
+        logger.log(Level.FINE, "Redirect to: {0}", location);
     }
 
     private void sendHtmlResponse(HttpExchange exchange, int statusCode, String html) throws IOException {
@@ -1792,6 +1942,7 @@ class SimpleCMSHandler implements CMSHandler {
         exchange.sendResponseHeaders(statusCode, response.length);
         exchange.getResponseBody().write(response);
         exchange.getResponseBody().close();
+        logger.log(Level.FINE, "Sent HTML response with status: {0}", statusCode);
     }
 
     private void sendResponse(HttpExchange exchange, int statusCode, String message) throws IOException {
@@ -1799,6 +1950,7 @@ class SimpleCMSHandler implements CMSHandler {
         exchange.sendResponseHeaders(statusCode, response.length);
         exchange.getResponseBody().write(response);
         exchange.getResponseBody().close();
+        logger.log(Level.FINE, "Sent response with status: {0}", statusCode);
     }
 }
 
@@ -1811,10 +1963,29 @@ class SimpleArticleServer implements ArticleServer {
     private final ServerConfig config;
     private final ArticleRepository repository;
     private boolean running = false;
+    private static final Logger logger = Logger.getLogger(SimpleArticleServer.class.getName());
 
     public SimpleArticleServer(ServerConfig config) throws IOException {
         this.config = config;
         this.repository = new FileArticleRepository(config.getStoragePath());
+        setupLogging();
+    }
+
+    private void setupLogging() {
+        try {
+            LogManager.getLogManager().readConfiguration(
+                    Main.class.getResourceAsStream("/logging.properties")
+            );
+        } catch (Exception e) {
+            // Use default logging configuration
+            Logger rootLogger = Logger.getLogger("");
+            Handler[] handlers = rootLogger.getHandlers();
+            if (handlers.length == 0) {
+                ConsoleHandler handler = new ConsoleHandler();
+                handler.setFormatter(new SimpleFormatter());
+                rootLogger.addHandler(handler);
+            }
+        }
     }
 
     @Override
@@ -1845,12 +2016,12 @@ class SimpleArticleServer implements ArticleServer {
         server.start();
         running = true;
 
-        System.out.println("Article Platform started!");
-        System.out.println("URL: http://localhost:" + config.getPort());
-        System.out.println("CMS: http://localhost:" + config.getPort() + "/cms");
-        System.out.println("Username: " + config.getCmsUsername());
-        System.out.println("Password: " + config.getCmsPassword());
-        System.out.println("\nPress Ctrl+C to stop the server.");
+        logger.log(Level.INFO, "Article Platform started successfully!");
+        logger.log(Level.INFO, "URL: http://localhost:{0}", config.getPort());
+        logger.log(Level.INFO, "CMS: http://localhost:{0}/cms", config.getPort());
+        logger.log(Level.INFO, "Username: {0}", config.getCmsUsername());
+        logger.log(Level.WARNING, "Using default password - change immediately in config file!");
+        logger.log(Level.INFO, "Press Ctrl+C to stop the server.");
     }
 
     @Override
@@ -1858,7 +2029,7 @@ class SimpleArticleServer implements ArticleServer {
         if (server != null) {
             server.stop(5);
             running = false;
-            System.out.println("Server stopped.");
+            logger.log(Level.INFO, "Server stopped gracefully.");
         }
     }
 
@@ -1873,23 +2044,27 @@ class SimpleArticleServer implements ArticleServer {
 // ============================================================================
 
 public class Main {
+    private static final Logger logger = Logger.getLogger(Main.class.getName());
+
     public static void main(String[] args) {
         try {
+            logger.info("Starting Article Platform...");
+
             ServerConfig config = new SimpleServerConfig("config/server.properties");
             SimpleArticleServer server = new SimpleArticleServer(config);
 
             // Shutdown hook for graceful shutdown
-            Runtime.getRuntime().addShutdownHook(new Thread(server::stop));
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                logger.info("Shutdown signal received, stopping server...");
+                server.stop();
+            }));
 
             server.start();
-            System.out.println("Server started on port: " + config.getPort());
-            System.out.flush();
             // Keep main thread alive
             Thread.currentThread().join();
 
         } catch (Exception e) {
-            System.err.println("Failed to start server: " + e.getMessage());
-            e.printStackTrace();
+            logger.log(Level.SEVERE, "Failed to start server: " + e.getMessage(), e);
             System.exit(1);
         }
     }
