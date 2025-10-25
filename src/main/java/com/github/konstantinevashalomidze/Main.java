@@ -1439,30 +1439,17 @@ class SimpleServerConfig implements ServerConfig {
     private final Properties props;
     private static final Logger logger = Logger.getLogger(SimpleServerConfig.class.getName());
 
-    public SimpleServerConfig(String configPath) throws IOException {
+    public SimpleServerConfig() {
         props = new Properties();
-        Path path = Paths.get(configPath);
 
-        if (Files.exists(path)) {
-            try (var in = Files.newInputStream(path)) {
-                props.load(in);
-                logger.log(Level.INFO, "Loaded configuration from: {0}", configPath);
-            }
-        } else {
-            // Create default config
-            props.setProperty("server.port", "8080");
-            props.setProperty("server.host", "0.0.0.0");
-            props.setProperty("storage.path", "data/articles");
-            props.setProperty("cms.username", "admin");
-            props.setProperty("cms.password", "changeme");
+        // Load with defaults, then override from system properties
+        props.setProperty("server.port", System.getProperty("server.port", "8080"));
+        props.setProperty("server.host", System.getProperty("server.host", "0.0.0.0"));
+        props.setProperty("storage.path", System.getProperty("storage.path", "data/articles"));
+        props.setProperty("cms.username", System.getProperty("cms.username", "admin"));
+        props.setProperty("cms.password", System.getProperty("cms.password", "changeme"));
 
-            Files.createDirectories(path.getParent());
-            try (var out = Files.newOutputStream(path)) {
-                props.store(out, "Article Platform Configuration");
-            }
-            logger.log(Level.INFO, "Created default config at: {0}", configPath);
-            logger.log(Level.WARNING, "Using default CMS credentials - change password immediately in config file!");
-        }
+        logger.log(Level.INFO, "Configuration initialized");
     }
 
     @Override
@@ -2050,7 +2037,7 @@ public class Main {
         try {
             logger.info("Starting Article Platform...");
 
-            ServerConfig config = new SimpleServerConfig("config/server.properties");
+            ServerConfig config = new SimpleServerConfig();
             SimpleArticleServer server = new SimpleArticleServer(config);
 
             // Shutdown hook for graceful shutdown
