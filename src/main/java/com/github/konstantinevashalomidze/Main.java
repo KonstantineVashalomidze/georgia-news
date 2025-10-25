@@ -950,7 +950,6 @@ class SimpleHTMLSanitizer implements HTMLSanitizer {
 class SimpleArticleValidator implements ArticleValidator {
     private final List<String> errors = new ArrayList<>();
     private static final Pattern SLUG_PATTERN = Pattern.compile("^[a-z0-9-]+$");
-    private static final Pattern TAG_PATTERN = Pattern.compile("^[a-z0-9-\\s\\u10D0-\\u10FA]+$");
     private static final Logger logger = Logger.getLogger(SimpleArticleValidator.class.getName());
 
     @Override
@@ -1007,8 +1006,6 @@ class SimpleArticleValidator implements ArticleValidator {
             for (String tag : tags) {
                 if (tag.length() > 50) {
                     errors.add("Tag '" + tag + "' exceeds 50 characters");
-                } else if (!TAG_PATTERN.matcher(tag).matches()) {
-                    errors.add("Tag '" + tag + "' must contain only lowercase letters, numbers, and hyphens");
                 }
             }
         }
