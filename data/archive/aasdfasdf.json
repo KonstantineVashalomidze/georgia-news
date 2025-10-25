@@ -1,0 +1,12 @@
+{
+  "id":"ad61d177-c6f5-492f-8771-ae0f11bad18b",
+  "title":"asdfasdf",
+  "slug":"aasdfasdf",
+  "content":"<h2>Introduction</h2>\r\n<p>Java has been a cornerstone of web development for decades. In this article, we'll explore the basics of building web applications using pure Java.</p>\r\n\r\n<h2>Why Java for Web?</h2>\r\n<ul>\r\n  <li>Robust and mature ecosystem</li>\r\n  <li>Strong typing and compile-time checking</li>\r\n  <li>Excellent performance</li>\r\n  <li>Wide industry adoption</li>\r\n</ul>\r\n\r\n<h2>Getting Started</h2>\r\n<p>First, you'll need to set up your development environment. Make sure you have:</p>\r\n<ol>\r\n  <li>JDK 11 or higher installed</li>\r\n  <li>A text editor or IDE</li>\r\n  <li>Basic understanding of HTTP</li>\r\n</ol>\r\n\r\n<h3>Your First Handler</h3>\r\n<p>Here's a simple example of handling HTTP requests:</p>\r\n<pre><code>public void handle(HttpExchange exchange) {\r\n    String resp;\r\n    exchange.sendResponseHeaders(200, response.length());\r\n    exchange.getResponseBody().write(response.getBytes());\r\n}</code></pre>\r\n\r\n<h2>Conclusion</h2>\r\n<p>Java web development might seem complex at first, but with practice, you'll find it powerful and reliable.</p>",
+  "summary":"adsfasfsdf",
+  "author":"asdf",
+  "publishedAt":"2025-10-25T18:43:37.6205703",
+  "updatedAt":"2025-10-25T18:43:37.6205703",
+  "published":true,
+  "tags":["asdfasdfasd"]
+}

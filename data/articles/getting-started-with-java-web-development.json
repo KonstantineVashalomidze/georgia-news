@@ -1,0 +1,12 @@
+{
+  "id":"9dc487b1-de90-4226-a974-e94c6eb14d2f",
+  "title":"Getting Started with Java Web Development",
+  "slug":"getting-started-with-java-web-development",
+  "content":"<h2>Introduction</h2>\r\n<p>Java has been a cornerstone of web development for decades. In this article, we'll explore the basics of building web applications using pure Java.</p>\r\n\r\n<h2>Why Java for Web?</h2>\r\n<ul>\r\n  <li>Robust and mature ecosystem</li>\r\n  <li>Strong typing and compile-time checking</li>\r\n  <li>Excellent performance</li>\r\n  <li>Wide industry adoption</li>\r\n</ul>\r\n\r\n<h2>Getting Started</h2>\r\n<p>First, you'll need to set up your development environment. Make sure you have:</p>\r\n<ol>\r\n  <li>JDK 11 or higher installed</li>\r\n  <li>A text editor or IDE</li>\r\n  <li>Basic understanding of HTTP</li>\r\n</ol>\r\n\r\n<h3>Your First Handler</h3>\r\n<p>Here's a simple example of handling HTTP requests:</p>\r\n<pre><code>public void handle(HttpExchange exchange) {\r\n    String resp;\r\n    exchange.sendResponseHeaders(200, response.length());\r\n    exchange.getResponseBody().write(response.getBytes());\r\n}</code></pre>\r\n\r\n<h2>Conclusion</h2>\r\n<p>Java web development might seem complex at first, but with practice, you'll find it powerful and reliable.</p>",
+  "summary":"Learn the fundamentals of building web applications with Java. This guide covers servlets, HTTP handling, and basic web architecture.",
+  "author":"John Doe",
+  "publishedAt":"2025-10-25T18:49:27.7121307",
+  "updatedAt":"2025-10-25T18:49:27.7121307",
+  "published":true,
+  "tags":["java","web-development","tutorial","beginner"]
+}
