@@ -1883,6 +1883,7 @@ public class Main {
 
             server.start();
             System.out.println("Server started on port: " + config.getPort());
+            System.out.flush();
             // Keep main thread alive
             Thread.currentThread().join();
 
