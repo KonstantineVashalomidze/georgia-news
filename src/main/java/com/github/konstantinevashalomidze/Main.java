@@ -950,7 +950,7 @@ class SimpleHTMLSanitizer implements HTMLSanitizer {
 class SimpleArticleValidator implements ArticleValidator {
     private final List<String> errors = new ArrayList<>();
     private static final Pattern SLUG_PATTERN = Pattern.compile("^[a-z0-9-]+$");
-    private static final Pattern TAG_PATTERN = Pattern.compile("^[a-z0-9-\\u10D0-\\u10F0\\u10F1-\\u10F6]+$");
+    private static final Pattern TAG_PATTERN = Pattern.compile("^[a-z0-9-\\s\\u10D0-\\u10FA]+$");
     private static final Logger logger = Logger.getLogger(SimpleArticleValidator.class.getName());
 
     @Override
@@ -1596,6 +1596,9 @@ class SimpleCMSAuthenticator implements CMSAuthenticator {
         logger.log(Level.INFO, "Invalidated session token");
     }
 }
+
+
+
 
 // ============================================================================
 // ARTICLE HANDLER IMPLEMENTATION
