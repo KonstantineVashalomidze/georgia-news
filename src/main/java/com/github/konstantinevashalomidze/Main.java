@@ -2007,7 +2007,6 @@ class SimpleArticleServer implements ArticleServer {
         logger.log(Level.INFO, "URL: http://localhost:{0}", config.getPort());
         logger.log(Level.INFO, "CMS: http://localhost:{0}/cms", config.getPort());
         logger.log(Level.INFO, "მომხმარებლის სახელი: {0}", config.getCmsUsername());
-        logger.log(Level.WARNING, "Using default password - change immediately in config file!");
         logger.log(Level.INFO, "Press Ctrl+C to stop the server.");
     }
 
