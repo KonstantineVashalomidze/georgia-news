@@ -1882,7 +1882,7 @@ public class Main {
             Runtime.getRuntime().addShutdownHook(new Thread(server::stop));
 
             server.start();
-
+            System.out.println("Server started on port: " + config.getPort());
             // Keep main thread alive
             Thread.currentThread().join();
 
